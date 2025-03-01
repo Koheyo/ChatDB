@@ -3,6 +3,7 @@ ChatDB
 
 Project structure
 
+```markdown
 ChatDB/
 │── src/
 │   │── __init__.py
@@ -27,3 +28,5 @@ ChatDB/
 │── requirements.txt                   # List of dependencies
 │── README.md                          # Project overview and setup instructions
 │── .gitignore                          # Ignore unnecessary files
+```
+
