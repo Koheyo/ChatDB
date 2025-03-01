@@ -1,5 +1,6 @@
 streamlit
 pandas
+sqlparse
 pymysql
 pymongo
 openai
