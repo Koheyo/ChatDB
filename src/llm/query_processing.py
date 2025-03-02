@@ -24,7 +24,7 @@ def get_sql_schema():
 
 def get_nosql_schema():
     """Retrieves MongoDB collection structure."""
-    db = connect_to_nosql()["your_database"]
+    db = connect_to_nosql()["student"]
     schema = {}
     collections = db.list_collection_names()
 
@@ -32,6 +32,7 @@ def get_nosql_schema():
         document = db[collection].find_one()
         if document:
             schema[collection] = list(document.keys())
+    print("attension!!!!!!!!!:",schema)
     return schema
 
 
@@ -59,13 +60,20 @@ def extract_sql_from_response(llm_response: str) -> str:
 
 
 
-def generate_query(user_query: str, db_type="sql") -> tuple:
+def generate_query(user_query: str, db_type) -> tuple:
     """Uses LLM to generate an SQL/NoSQL query based on schema."""
     schema = get_sql_schema() if db_type == "sql" else get_nosql_schema()
 
     system_prompt = f"""
-    You are a database query assistant. Convert the following natural language query to a {db_type.upper()} query.
-    Use the provided database schema to generate a correct query.
+    You are a database query assistant. Based on the provided database schema, convert the following natural language query into a valid query.
+    The target database type is specified as {db_type.upper()}.
+    When the database type is SQL, output a valid SQL statement.
+    When the database type is NOSQL, output a valid MongoDB query in Python syntax.
+    IMPORTANT:
+    - For NOSQL queries, use the collection names exactly as provided in the schema.
+      For example, if the schema is {schema}, then the collection name to be used is "info".
+      Your output for a NOSQL query must be a single Python expression starting with db["info"]
+    - For SQL queries, use the provided schema as guidance.
     Schema:
     {schema}
     """
@@ -76,9 +84,10 @@ def generate_query(user_query: str, db_type="sql") -> tuple:
     ]
 
     completion = call_llm_api(messages)
-    print(completion)
     extracted_query = extract_sql_from_response(completion)
-
+    print(extracted_query)
+    if (".find(" in extracted_query) or (".aggregate(" in extracted_query):
+        return "NOSQL", extracted_query
     # 避免错误拆分
     if extracted_query.upper().startswith(("SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "DROP")):
         return "SQL", extracted_query  # 保证完整 SQL 语句
