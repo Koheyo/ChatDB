@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
-from utils import generate_query, execute_sql, execute_mongo, get_nosql_schema, validate_sql
+from src.llm import generate_query, get_nosql_schema, extract_sql_from_response
+from src.db import execute_sql, execute_nosql, validate_sql
 
 def main():
     st.title("Natural Language to SQL/NoSQL Query")
@@ -21,7 +22,11 @@ def main():
             db_type = "sql" if db_choice == "SQL" else "nosql"
             
             # Generate and store query
-            st.session_state.generated_query = generate_query(user_query, db_type)
+            query_type, sql_query = generate_query(user_query, db_type)
+            sql_query = extract_sql_from_response(sql_query)  # 提取 SQL 语句
+
+            st.session_state.generated_query = sql_query  # 只存储 SQL 语句
+            #st.session_state.generated_query = generate_query(user_query, db_type)
 
     # Display the generated query **only if it exists**
     if st.session_state.generated_query:
@@ -53,7 +58,7 @@ def main():
                 # Execute NoSQL Query
                 collection = list(get_nosql_schema().keys())[0]
                 filter_query = {}  
-                result_df = execute_mongo(collection, filter_query)
+                result_df = execute_nosql(collection, filter_query)
 
                 # Display results
                 if isinstance(result_df, pd.DataFrame):
