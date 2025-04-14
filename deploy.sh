@@ -7,6 +7,7 @@ GITHUB_TOKEN="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"
 REPO_URL="https://${GITHUB_TOKEN}@github.com/Koheyo/ChatDB.git"
 REPO_DIR="chatdb-project"
 APP_PORT=8501
+TEMP_DIR=".deploy_temp"
 
 # Function to log messages
 log() {
@@ -18,6 +19,16 @@ handle_error() {
     log "ERROR: $1"
     exit 1
 }
+
+# Cleanup function
+cleanup() {
+    if [ -d "$TEMP_DIR" ]; then
+        rm -rf "$TEMP_DIR"
+    fi
+}
+
+# Register cleanup on script exit
+trap cleanup EXIT
 
 # Step 1: Clone or Pull latest code
 if [ -d "$REPO_DIR/.git" ]; then
@@ -31,9 +42,10 @@ else
     cd "$REPO_DIR" || handle_error "Failed to enter $REPO_DIR directory"
 fi
 
-# Now we're in the project directory, set up logs
+# Now we're in the project directory, set up logs and temp directory
 LOG_DIR="logs"
 mkdir -p "$LOG_DIR" || handle_error "Failed to create logs directory"
+mkdir -p "$TEMP_DIR" || handle_error "Failed to create temp directory"
 log "Created logs directory at: $(pwd)/$LOG_DIR"
 
 # Step 2: Set up virtual environment
@@ -56,17 +68,17 @@ pkill -f "streamlit run" || true
 
 # Step 5: Run Streamlit app
 log "Starting Streamlit app..."
-# Create a temporary script to run Streamlit
-cat > run_streamlit.sh << 'EOF'
+# Create a temporary script to run Streamlit in the temp directory
+cat > "$TEMP_DIR/run_streamlit.sh" << 'EOF'
 #!/bin/bash
 source venv/bin/activate
 streamlit run src/main.py --server.port 8501 --server.address 0.0.0.0
 EOF
 
-chmod +x run_streamlit.sh
+chmod +x "$TEMP_DIR/run_streamlit.sh"
 
 # Run Streamlit in the background and redirect output
-nohup ./run_streamlit.sh > "$LOG_DIR/streamlit.log" 2>&1 &
+nohup "$TEMP_DIR/run_streamlit.sh" > "$LOG_DIR/streamlit.log" 2>&1 &
 
 # Wait for the process to start
 sleep 10
