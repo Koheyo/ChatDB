@@ -40,4 +40,15 @@ ENV/
 .Spotlight-V100
 .Trashes
 ehthumbs.db
-Thumbs.db 
+Thumbs.db
+
+# Project specific
+logs/
+.deploy_temp/
+
+# Python cache files
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so 
