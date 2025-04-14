@@ -6,7 +6,6 @@ set -e  # Exit on error
 GITHUB_TOKEN="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"
 REPO_URL="https://${GITHUB_TOKEN}@github.com/Koheyo/ChatDB.git"
 REPO_DIR="chatdb-project"
-LOG_DIR="$REPO_DIR/logs"
 APP_PORT=8501
 
 # Function to log messages
@@ -20,9 +19,6 @@ handle_error() {
     exit 1
 }
 
-# Create logs directory if it doesn't exist
-mkdir -p "$LOG_DIR" || handle_error "Failed to create logs directory"
-
 # Step 1: Clone or Pull latest code
 if [ -d "$REPO_DIR/.git" ]; then
     log "Pulling latest code from main branch..."
@@ -34,6 +30,11 @@ else
     git clone -b main "$REPO_URL" "$REPO_DIR" || handle_error "Failed to clone repository"
     cd "$REPO_DIR" || handle_error "Failed to enter $REPO_DIR directory"
 fi
+
+# Now we're in the project directory, set up logs
+LOG_DIR="logs"
+mkdir -p "$LOG_DIR" || handle_error "Failed to create logs directory"
+log "Created logs directory at: $(pwd)/$LOG_DIR"
 
 # Step 2: Set up virtual environment
 if [ ! -d "venv" ]; then
@@ -73,12 +74,16 @@ sleep 10
 # Check if the process is running
 if pgrep -f "streamlit run" > /dev/null; then
     log "Deployment successful! App is running at: http://$(curl -s ifconfig.me):$APP_PORT"
-    log "Check logs at: $LOG_DIR/streamlit.log"
+    log "Check logs at: $(pwd)/$LOG_DIR/streamlit.log"
     # Print the last few lines of the log for verification
     log "Last few lines of the log:"
     tail -n 10 "$LOG_DIR/streamlit.log"
 else
     log "Streamlit process not found. Checking logs for errors..."
-    cat "$LOG_DIR/streamlit.log"
+    if [ -f "$LOG_DIR/streamlit.log" ]; then
+        cat "$LOG_DIR/streamlit.log"
+    else
+        log "No log file found at: $(pwd)/$LOG_DIR/streamlit.log"
+    fi
     handle_error "Failed to start Streamlit application"
 fi
