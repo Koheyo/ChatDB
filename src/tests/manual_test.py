@@ -5,8 +5,8 @@ from db.nosql_connector import connect_to_nosql
 
 # 测试 SQL 查询
 print("====== 测试 SQL 查询 ======")
-user_input = "查询学生年龄"
-query_type, sql_query = generate_query(user_input, db_type="nosql")
+user_input = "查询学生姓名"
+query_type, sql_query = generate_query(user_input, db_type="sql")
 if query_type.upper() == "SQL":
     sql_query = extract_sql_from_response(sql_query)
 
