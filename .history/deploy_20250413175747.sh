@@ -72,7 +72,7 @@ log "Starting Streamlit app..."
 cat > "$TEMP_DIR/run_streamlit.sh" << 'EOF'
 #!/bin/bash
 source venv/bin/activate
-streamlit run app.py --server.port 8501 --server.address 0.0.0.0
+streamlit run src/main.py --server.port 8501 --server.address 0.0.0.0
 EOF
 
 chmod +x "$TEMP_DIR/run_streamlit.sh"
