@@ -51,4 +51,7 @@ logs/
 *.pyo
 *.pyd
 .Python
-*.so 
+*.so
+
+# VS Code History
+.history/ 
