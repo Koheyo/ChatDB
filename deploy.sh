@@ -32,9 +32,10 @@ trap cleanup EXIT
 
 # Step 1: Clone or Pull latest code
 if [ -d "$REPO_DIR/.git" ]; then
-    log "Pulling latest code from main branch..."
+    log "Resetting any local changes..."
     cd "$REPO_DIR" || handle_error "Failed to enter $REPO_DIR directory"
-    git checkout main || handle_error "Failed to checkout main branch"
+    git reset --hard HEAD || handle_error "Failed to reset local changes"
+    git clean -fd || handle_error "Failed to clean untracked files"
     git pull origin main || handle_error "Failed to pull latest changes"
 else
     log "Cloning repo for the first time..."
