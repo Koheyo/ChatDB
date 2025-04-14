@@ -6,7 +6,7 @@ set -e  # Exit on error
 GITHUB_TOKEN="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"
 REPO_URL="https://${GITHUB_TOKEN}@github.com/Koheyo/ChatDB.git"
 REPO_DIR="chatdb-project"
-LOG_DIR="logs"
+LOG_DIR="$REPO_DIR/logs"
 APP_PORT=8501
 
 # Function to log messages
@@ -55,18 +55,30 @@ pkill -f "streamlit run" || true
 
 # Step 5: Run Streamlit app
 log "Starting Streamlit app..."
-nohup streamlit run src/main.py \
-    --server.port $APP_PORT \
-    --server.address 0.0.0.0 \
-    > "$LOG_DIR/streamlit.log" 2>&1 &
+# Create a temporary script to run Streamlit
+cat > run_streamlit.sh << 'EOF'
+#!/bin/bash
+source venv/bin/activate
+streamlit run src/main.py --server.port 8501 --server.address 0.0.0.0
+EOF
+
+chmod +x run_streamlit.sh
+
+# Run Streamlit in the background and redirect output
+nohup ./run_streamlit.sh > "$LOG_DIR/streamlit.log" 2>&1 &
 
 # Wait for the process to start
-sleep 5
+sleep 10
 
 # Check if the process is running
 if pgrep -f "streamlit run" > /dev/null; then
     log "Deployment successful! App is running at: http://$(curl -s ifconfig.me):$APP_PORT"
     log "Check logs at: $LOG_DIR/streamlit.log"
+    # Print the last few lines of the log for verification
+    log "Last few lines of the log:"
+    tail -n 10 "$LOG_DIR/streamlit.log"
 else
+    log "Streamlit process not found. Checking logs for errors..."
+    cat "$LOG_DIR/streamlit.log"
     handle_error "Failed to start Streamlit application"
 fi
