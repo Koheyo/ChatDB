@@ -30,7 +30,7 @@ jobs:
         ls -la ~/.ssh/
         
         # Debug: Test SSH connection
-        ssh -v -i ~/.ssh/id_rsa ${{ secrets.EC2_HOST }} "echo 'SSH connection successful'"
+        ssh -v -i ~/.ssh/id_rsa ubuntu@${{ secrets.EC2_HOST }} "echo 'SSH connection successful'"
 
     - name: Deploy to EC2
       run: |
@@ -39,7 +39,7 @@ jobs:
         ssh-add ~/.ssh/id_rsa
         
         # Deploy with verbose output
-        ssh -v -i ~/.ssh/id_rsa ${{ secrets.EC2_HOST }} << 'ENDSSH'
+        ssh -v -i ~/.ssh/id_rsa ubuntu@${{ secrets.EC2_HOST }} << 'ENDSSH'
           cd ~/ChatDB
           echo "Current directory: $(pwd)"
           echo "Deploy script contents:"
