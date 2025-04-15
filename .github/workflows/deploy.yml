@@ -14,15 +14,35 @@ jobs:
 
     - name: Set up SSH
       run: |
+        # Create SSH directory
         mkdir -p ~/.ssh
+        chmod 700 ~/.ssh
+        
+        # Write the private key to file
         echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
-        echo "EC2 Host is: ${{ secrets.EC2_HOST }}"
+        
+        # Add EC2 host to known hosts
         ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+        chmod 644 ~/.ssh/known_hosts
+        
+        # Debug: Show SSH directory contents
+        ls -la ~/.ssh/
+        
+        # Debug: Test SSH connection
+        ssh -v -i ~/.ssh/id_rsa ${{ secrets.EC2_HOST }} "echo 'SSH connection successful'"
 
     - name: Deploy to EC2
       run: |
-        ssh ${{ secrets.EC2_HOST }} << 'EOF'
+        # Use ssh-agent for key management
+        eval $(ssh-agent -s)
+        ssh-add ~/.ssh/id_rsa
+        
+        # Deploy with verbose output
+        ssh -v -i ~/.ssh/id_rsa ${{ secrets.EC2_HOST }} << 'ENDSSH'
           cd ~/ChatDB
+          echo "Current directory: $(pwd)"
+          echo "Deploy script contents:"
+          cat deploy.sh
           bash deploy.sh
-        EOF 
+        ENDSSH
