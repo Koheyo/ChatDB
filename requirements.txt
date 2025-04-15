@@ -4,3 +4,4 @@ sqlparse
 pymysql
 pymongo
 openai
+psycopg2-binary
