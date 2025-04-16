@@ -3,8 +3,7 @@
 set -e  # Exit on error
 
 # Configuration
-GITHUB_TOKEN="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"
-REPO_URL="https://${GITHUB_TOKEN}@github.com/Koheyo/ChatDB.git"
+REPO_URL="git@github.com:Koheyo/ChatDB.git"
 REPO_DIR="chatdb-project"
 APP_PORT=8501
 TEMP_DIR=".deploy_temp"
