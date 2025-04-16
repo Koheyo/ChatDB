@@ -42,7 +42,16 @@ jobs:
         ssh -v -i ~/.ssh/id_rsa ubuntu@${{ secrets.EC2_HOST }} << 'ENDSSH'
           cd ~/ChatDB
           echo "Current directory: $(pwd)"
+          
+          # Update deploy.sh from GitHub
+          echo "Updating deploy.sh..."
+          git fetch origin main
+          git checkout origin/main -- deploy.sh
+          chmod +x deploy.sh
+          
           echo "Deploy script contents:"
           cat deploy.sh
+          
+          # Run the updated deploy script
           bash deploy.sh
         ENDSSH
