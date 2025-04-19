@@ -9,11 +9,12 @@ from src.llm import (extract_sql_from_response, generate_query,
 
 
 def clean_mongodb_data(data):
-    """Clean MongoDB data by converting special types to strings."""
+    """Clean MongoDB data by converting special types to strings, and flatten lists to comma-separated strings for DataFrame compatibility."""
     if isinstance(data, dict):
         return {k: clean_mongodb_data(v) for k, v in data.items()}
     elif isinstance(data, list):
-        return [clean_mongodb_data(item) for item in data]
+        # 把 list 转成逗号分隔的字符串
+        return ', '.join([str(clean_mongodb_data(item)) for item in data])
     elif isinstance(data, ObjectId):
         return str(data)
     elif isinstance(data, (pd.Timestamp, pd.DatetimeTZDtype)):
