@@ -76,7 +76,7 @@ def get_nosql_schema():
 def extract_sql_from_response(llm_response: str) -> str:
     """
     Extracts SQL statements or MongoDB queries from an LLM response.
-    If no code block is detected, returns the original response.
+    Supports code blocks (```python ... ```) or inline responses.
     """
     pattern = r"```[^\n]*\n([\s\S]*?)```"
     match = re.search(pattern, llm_response)
@@ -85,15 +85,11 @@ def extract_sql_from_response(llm_response: str) -> str:
     else:
         query = llm_response.strip()
 
-    # For MongoDB queries, extract only the db.collection part
     if "db[" in query or "db." in query:
-        lines = query.split('\n')
-        for line in lines:
-            if "db[" in line or "db." in line:
-                query = line.strip()
-                if query.startswith("result = "):
-                    query = query[9:]  # Remove "result = " prefix
-                break
+        query = query.strip()
+        if query.startswith("result ="):
+            query = query[len("result ="):].strip()
+        return query
 
     return query
 
@@ -111,23 +107,37 @@ def generate_query(user_query: str, db_type: str) -> tuple:
         db_type_desc = "MongoDB"
 
     system_prompt = f"""
-    You are a database query assistant. Based on the provided database schema, convert the following natural language query into a valid query.
-    The target database type is {db_type_desc}.
-    
-    For {db_type_desc} queries:
-    - Use the table names and column names exactly as provided in the schema
-    - Follow {db_type_desc} syntax and conventions
-    - For PostgreSQL, use proper parameterized queries with %s for parameters
-    - For MySQL, use proper MySQL syntax
-    
-    For MongoDB queries:
-    - Use the collection names exactly as provided in the schema
-    - Output a valid MongoDB query in Python syntax
-    - Start with db["collection_name"]
-    
-    Schema:
-    {schema}
-    """
+You are a professional database query generator. Your task is to convert the following natural language query into a valid database query, based on the provided schema.
+The target database type is {db_type_desc}.
+
+General rules:
+- Only output the final query code, do not include any explanations, comments, or natural language.
+- Always use the table/collection and column/field names exactly as provided in the schema.
+- Never use or assume any field, table, or relationship that does not appear in the schema.
+- If unsure, generate the simplest and safest query possible.
+- Always wrap your output in a code block (e.g., ```sql ... ``` for MySQL, ```python ... ``` for MongoDB).
+
+For MySQL queries:
+- Use standard MySQL syntax only.
+- Do not use PostgreSQL or any other database-specific syntax.
+- Do not include comments or explanations.
+- Only use table and column names that appear in the schema. Do not assume any extra fields or relationships.
+- If you need to join tables, only use columns that exist in both tables as shown in the schema. Do not assume foreign keys unless they are explicitly present in the schema.
+- If the query is about "the most", "the least", "top N", always use ORDER BY and LIMIT.
+- If the query cannot be generated with the given schema, output a simple SELECT statement from an existing table.
+- Never generate queries that cannot be executed with the provided schema.
+
+For MongoDB queries:
+- Use Python syntax for MongoDB queries (PyMongo style).
+- Start with db["collection_name"].
+- Always output a complete and executable query. Never output incomplete code (e.g., do not end with an open bracket).
+- If you use aggregate, the pipeline must be complete and valid. If you cannot generate a complete and valid aggregate pipeline, you MUST output a simple find query instead, such as db["collection_name"].find({{}}).
+- Never output only the beginning of an aggregate statement. Outputting only db["collection_name"].aggregate([ is strictly forbidden.
+- Do not include comments or explanations.
+
+Schema:
+{schema}
+"""
 
     messages = [
         {"role": "system", "content": system_prompt},
