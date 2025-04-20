@@ -1,12 +1,11 @@
 # Converts natural language queries into structured database queries
 import json
 import re
-import pymysql
 
-from ..db.nosql_connector import connect_to_nosql
-from ..db.postgres_connector import connect_to_postgres
-from ..db.rdbms_connector import connect_to_rdbms
-from .llm_integration import call_llm_api
+from db.nosql_connector import connect_to_nosql
+from db.postgres_connector import connect_to_postgres
+from db.rdbms_connector import connect_to_rdbms
+from llm.llm_integration import call_llm_api
 
 def infer_json_array_type(connection, table_name: str, field_name: str, sample_size: int = 5):
     cursor = connection.cursor()
@@ -33,7 +32,7 @@ def infer_json_array_type(connection, table_name: str, field_name: str, sample_s
         return "array<mixed>"
 
 def get_sql_schema():
-    """Retrieves MySQL database schema."""
+    """Retrieves MySQL database schema with detailed column info and inferred JSON arrays."""
     connection = connect_to_rdbms()
     schema = {}
     try:
@@ -42,22 +41,37 @@ def get_sql_schema():
             tables = [row[0] for row in cursor.fetchall()]
 
             for table in tables:
-                cursor.execute(f"DESCRIBE {table};")
-                columns = cursor.fetchall()
-                schema[table] = {}
-                for column in columns:
-                    field_name = column[0]
-                    field_type = column[1]
+                cursor.execute(f"SHOW FULL COLUMNS FROM {table};")
+                columns = []
+                for col in cursor.fetchall():
+                    field_name = col[0]
+                    field_type = col[1]
                     if "json" in field_type.lower() or "text" in field_type.lower():
                         inferred_type = infer_json_array_type(connection, table, field_name)
-                        schema[table][field_name] = inferred_type
+                        columns.append({
+                            "name": field_name,
+                            "type": inferred_type,
+                            "nullable": col[3] == "YES",
+                            "key": col[4],
+                            "default": col[5],
+                            "extra": col[6]
+                        })
                     else:
-                        schema[table][field_name] = field_type
+                        columns.append({
+                            "name": field_name,
+                            "type": field_type,
+                            "nullable": col[3] == "YES",
+                            "key": col[4],
+                            "default": col[5],
+                            "extra": col[6]
+                        })
+                schema[table] = columns
     finally:
         connection.close()
     return schema
 
 def get_postgres_schema():
+    """Retrieves PostgreSQL database schema."""
     connection = connect_to_postgres()
     schema = {}
     try:
@@ -68,6 +82,7 @@ def get_postgres_schema():
                 WHERE table_schema = 'public'
             """)
             tables = [row['table_name'] for row in cursor.fetchall()]
+
             for table in tables:
                 cursor.execute("""
                     SELECT column_name, data_type 
@@ -79,20 +94,34 @@ def get_postgres_schema():
         connection.close()
     return schema
 
-def get_nosql_schema():
+def get_nosql_schema(sample_size=20, example_limit=3):
+    """Retrieves MongoDB collection structure with field types and example values."""
     db = connect_to_nosql()
     schema = {}
     collections = db.list_collection_names()
+    print("Available collections:", collections)
+
     for collection in collections:
-        document = db[collection].find_one()
-        if document:
-            fields = [key for key in document.keys() if key != '_id']
-            schema[collection] = fields
+        samples = list(db[collection].aggregate([{"$sample": {"size": sample_size}}]))
+        field_types = {}
+        for doc in samples:
+            for key, value in doc.items():
+                if key == '_id':
+                    continue
+                t = type(value).__name__
+                if key not in field_types:
+                    field_types[key] = set()
+                field_types[key].add(t)
+
+        schema[collection] = {
+            k: {"types": list(field_types[k])} for k in field_types
+        }
+        print(f"Schema for {collection}:", schema[collection])
     return schema
 
 def extract_sql_from_response(llm_response: str) -> str:
     try:
-        pattern =  r"```[^\n]*\n([\s\S]*?)```"
+        pattern = r"```[^\n]*\n([\s\S]*?)```"
         match = re.search(pattern, llm_response)
         if match:
             query = match.group(1).strip()
@@ -117,14 +146,18 @@ def fix_common_sql_errors(query: str) -> str:
 
 def rewrite_field_for_json(schema: dict, query: str) -> str:
     for table, fields in schema.items():
-        for field, type_str in fields.items():
+        for field in fields:
+            type_str = field["type"] if isinstance(field, dict) else fields[field]
             if isinstance(type_str, str) and "array<string>" in type_str:
-                # Replace actor_id in JSON_CONTAINS context with name
-                query = re.sub(r"JSON_CONTAINS\([^,]+,\s*CAST\((\w+)\.actor_id\s+AS\s+JSON\)\s*,\s*'\$'\)",
-                               r"JSON_CONTAINS(\g<1>.actors_json, JSON_QUOTE(\g<1>.name), '$')", query)
+                query = re.sub(
+                    r"JSON_CONTAINS\([^,]+,\s*CAST\((\w+)\.actor_id\s+AS\s+JSON\)\s*,\s*'\\$'\)",
+                    r"JSON_CONTAINS(\g<1>.actors_json, JSON_QUOTE(\g<1>.name), '$')",
+                    query
+                )
     return query
 
 def generate_query(user_query: str, db_type: str) -> tuple:
+    """Uses LLM to generate a database query based on schema."""
     if db_type == "mysql":
         schema = get_sql_schema()
         db_type_desc = "MySQL"
@@ -133,7 +166,7 @@ def generate_query(user_query: str, db_type: str) -> tuple:
         schema = get_postgres_schema()
         db_type_desc = "PostgreSQL"
         schema_str = str(schema)
-    else:
+    else:  # mongodb
         schema = get_nosql_schema()
         db_type_desc = "MongoDB"
         schema_str = json.dumps(schema, indent=2, ensure_ascii=False)
