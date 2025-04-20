@@ -1,4 +1,5 @@
 # Converts natural language queries into structured database queries
+import json
 import re
 
 from db.nosql_connector import connect_to_nosql
@@ -8,7 +9,7 @@ from llm.llm_integration import call_llm_api
 
 
 def get_sql_schema():
-    """Retrieves MySQL database schema."""
+    """Retrieves MySQL database schema with detailed column info."""
     connection = connect_to_rdbms()
     schema = {}
     try:
@@ -17,8 +18,19 @@ def get_sql_schema():
             tables = [row[0] for row in cursor.fetchall()]
 
             for table in tables:
-                cursor.execute(f"DESCRIBE {table};")
-                schema[table] = [column[0] for column in cursor.fetchall()]
+                cursor.execute(f"SHOW FULL COLUMNS FROM {table};")
+                columns = []
+                for col in cursor.fetchall():
+                    # SHOW FULL COLUMNS 返回顺序: Field, Type, Collation, Null, Key, Default, Extra, Privileges, Comment
+                    columns.append({
+                        "name": col[0],
+                        "type": col[1],
+                        "nullable": col[3] == "YES",
+                        "key": col[4],  # 'PRI' for primary key
+                        "default": col[5],
+                        "extra": col[6]
+                    })
+                schema[table] = columns
     finally:
         connection.close()
     return schema
@@ -51,25 +63,29 @@ def get_postgres_schema():
     return schema
 
 
-def get_nosql_schema():
-    """Retrieves MongoDB collection structure."""
+def get_nosql_schema(sample_size=20, example_limit=3):
+    """Retrieves MongoDB collection structure with field types and example values."""
     db = connect_to_nosql()
     schema = {}
-    
-    # Get all collections
     collections = db.list_collection_names()
     print("Available collections:", collections)
-    
-    # Get schema for each collection
+
     for collection in collections:
-        # Get one document from the collection to determine fields
-        document = db[collection].find_one()
-        if document:
-            # Remove _id field as it's MongoDB specific
-            fields = [key for key in document.keys() if key != '_id']
-            schema[collection] = fields
-            print(f"Schema for {collection}:", fields)
-    
+        samples = list(db[collection].aggregate([{"$sample": {"size": sample_size}}]))
+        field_types = {}
+        for doc in samples:
+            for key, value in doc.items():
+                if key == '_id':
+                    continue
+                t = type(value).__name__
+                if key not in field_types:
+                    field_types[key] = set()
+                field_types[key].add(t)
+
+        schema[collection] = {
+            k: {"types": list(field_types[k])} for k in field_types
+        }
+        print(f"Schema for {collection}:", schema[collection])
     return schema
 
 
@@ -99,12 +115,15 @@ def generate_query(user_query: str, db_type: str) -> tuple:
     if db_type == "mysql":
         schema = get_sql_schema()
         db_type_desc = "MySQL"
+        schema_str = json.dumps(schema, indent=2, ensure_ascii=False)
     elif db_type == "postgres":
         schema = get_postgres_schema()
         db_type_desc = "PostgreSQL"
+        schema_str = str(schema)
     else:  # mongodb
         schema = get_nosql_schema()
         db_type_desc = "MongoDB"
+        schema_str = json.dumps(schema, indent=2, ensure_ascii=False)
 
     system_prompt = f"""
 You are a professional database query generator. Your task is to convert the following natural language query into a valid database query, based on the provided schema.
@@ -136,7 +155,7 @@ For MongoDB queries:
 - Do not include comments or explanations.
 
 Schema:
-{schema}
+{schema_str}
 """
 
     messages = [
