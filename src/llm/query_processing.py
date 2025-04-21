@@ -78,6 +78,15 @@ def get_postgres_schema():
         connection.close()
     return schema
 
+# def get_nosql_schema():
+#     db = connect_to_nosql()
+#     schema = {}
+#     collections = db.list_collection_names()
+#     for collection in collections:
+#         document = db[collection].find_one()
+#         if document:
+#             schema[collection] = {key: "string" for key in document.keys() if key != '_id'}
+#     return schema
 def get_nosql_schema():
     db = connect_to_nosql()
     schema = {}
@@ -85,9 +94,28 @@ def get_nosql_schema():
     for collection in collections:
         document = db[collection].find_one()
         if document:
-            schema[collection] = {key: "string" for key in document.keys() if key != '_id'}
+            schema[collection] = {}
+            for key, value in document.items():
+                if key == "_id":
+                    continue
+                if isinstance(value, str):
+                    schema[collection][key] = "string"
+                elif isinstance(value, int):
+                    schema[collection][key] = "int"
+                elif isinstance(value, float):
+                    schema[collection][key] = "float"
+                elif isinstance(value, list):
+                    if all(isinstance(item, str) for item in value):
+                        schema[collection][key] = "array<string>"
+                    elif all(isinstance(item, int) for item in value):
+                        schema[collection][key] = "array<int>"
+                    else:
+                        schema[collection][key] = "array<mixed>"
+                elif isinstance(value, dict):
+                    schema[collection][key] = "object"
+                else:
+                    schema[collection][key] = "unknown"
     return schema
-
 def extract_sql_from_response(llm_response: str) -> str:
     pattern =  r"```[^\n]*\n([\s\S]*?)```"
     match = re.search(pattern, llm_response)
@@ -145,10 +173,39 @@ For MySQL queries:
 - Use standard MySQL syntax only.
 - Do not use PostgreSQL or any other database-specific syntax.
 - Do not include comments or explanations.
+-For JSON arrays like actors_json, if the extracted values are clearly names (e.g., "Tom Hanks", "Emma Watson"), assume they are actor names and JOIN using actor.name.
+
+-Do not assume actor_id unless the extracted values are numeric or look like IDs. Use CAST only if values are numeric.
+
+Example:
+If actors_json = ["Robert Downey Jr.", "Chris Evans"], then:
+JOIN actors a ON a.name = aj.actor_name
+-If comparing string fields across tables or JSON_TABLE, always ensure collation compatibility.
+Use COLLATE explicitly if needed, e.g., COLLATE utf8mb4_general_ci, to avoid collation mismatch errors.
 - Only use table and column names that appear in the schema. Do not assume any extra fields or relationships.
 - If the query is about "the most", "the least", "top N", always use ORDER BY and LIMIT.
 - If the query cannot be generated with the given schema, output a simple SELECT statement from an existing table.
 - Never generate queries that cannot be executed with the provided schema.
+-When comparing two VARCHAR or TEXT fields—especially from different tables—you must explicitly specify a collation using COLLATE to avoid illegal collation mix errors.
+-If working with a JSON array field such as `actors_json`: Always use JSON_TABLE to expand the array.
+- Use VARCHAR as the data type inside JSON_TABLE to safely extract string-based IDs or names.
+- Always wrap with JSON_VALID to avoid parsing errors.
+- Do NOT use JSON_EXTRACT or JSON_UNQUOTE to manually extract array values.
+- Do NOT cast to INT unless you're certain the values are numeric.
+- Avoid joining to other tables unless absolutely necessary for the result.
+- You may directly COUNT(DISTINCT actor_id) from the JSON_TABLE result.
+
+Correct usage example:
+
+SELECT d.name, COUNT(DISTINCT aj.actor_id) AS unique_actors
+FROM directors d
+JOIN movies m ON d.director_id = m.director_id
+JOIN JSON_TABLE(
+    m.actors_json,
+    '$[*]' COLUMNS(actor_id VARCHAR(255) PATH '$')
+) AS aj
+WHERE JSON_VALID(m.actors_json)
+GROUP BY d.name;
 
 For MongoDB queries:
 - Use Python syntax for MongoDB queries (PyMongo style).
@@ -157,6 +214,7 @@ For MongoDB queries:
 - If you use aggregate, the pipeline must be complete and valid. If you cannot generate a complete and valid aggregate pipeline, you MUST output a simple find query instead, such as db["collection_name"].find({{}}).
 - Never output only the beginning of an aggregate statement. Outputting only db["collection_name"].aggregate([ is strictly forbidden.
 - Do not include comments or explanations.
+-If a field is already of type array, do not apply $split. Use $size directly for counting elements, or $unwind for flattening.
 
 Schema:
 {schema_str}
