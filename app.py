@@ -13,7 +13,6 @@ def clean_mongodb_data(data):
     if isinstance(data, dict):
         return {k: clean_mongodb_data(v) for k, v in data.items()}
     elif isinstance(data, list):
-        # 把 list 转成逗号分隔的字符串
         return ', '.join([str(clean_mongodb_data(item)) for item in data])
     elif isinstance(data, ObjectId):
         return str(data)
@@ -26,7 +25,7 @@ def main():
     st.title("Natural Language to SQL/NoSQL Query")
 
     # Select the type of database
-    db_choice = st.radio("Select Database Type", ("MySQL", "PostgreSQL", "MongoDB"))
+    db_choice = st.radio("Select Database Type", ("MySQL", "MongoDB"))
 
     # Display database schema
     st.write("### Database Schema")
