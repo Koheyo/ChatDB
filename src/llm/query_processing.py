@@ -1,11 +1,12 @@
 # Converts natural language queries into structured database queries
 import json
 import re
+import pymysql
 
-from db.nosql_connector import connect_to_nosql
-from db.postgres_connector import connect_to_postgres
-from db.rdbms_connector import connect_to_rdbms
-from llm.llm_integration import call_llm_api
+from ..db.nosql_connector import connect_to_nosql
+from ..db.postgres_connector import connect_to_postgres
+from ..db.rdbms_connector import connect_to_rdbms
+from .llm_integration import call_llm_api
 
 def infer_json_array_type(connection, table_name: str, field_name: str, sample_size: int = 5):
     cursor = connection.cursor()
@@ -32,7 +33,6 @@ def infer_json_array_type(connection, table_name: str, field_name: str, sample_s
         return "array<mixed>"
 
 def get_sql_schema():
-    """Retrieves MySQL database schema with detailed column info and inferred JSON arrays."""
     connection = connect_to_rdbms()
     schema = {}
     try:
@@ -41,37 +41,22 @@ def get_sql_schema():
             tables = [row[0] for row in cursor.fetchall()]
 
             for table in tables:
-                cursor.execute(f"SHOW FULL COLUMNS FROM {table};")
-                columns = []
-                for col in cursor.fetchall():
-                    field_name = col[0]
-                    field_type = col[1]
+                cursor.execute(f"DESCRIBE {table};")
+                columns = cursor.fetchall()
+                schema[table] = {}
+                for column in columns:
+                    field_name = column[0]
+                    field_type = column[1]
                     if "json" in field_type.lower() or "text" in field_type.lower():
                         inferred_type = infer_json_array_type(connection, table, field_name)
-                        columns.append({
-                            "name": field_name,
-                            "type": inferred_type,
-                            "nullable": col[3] == "YES",
-                            "key": col[4],
-                            "default": col[5],
-                            "extra": col[6]
-                        })
+                        schema[table][field_name] = inferred_type
                     else:
-                        columns.append({
-                            "name": field_name,
-                            "type": field_type,
-                            "nullable": col[3] == "YES",
-                            "key": col[4],
-                            "default": col[5],
-                            "extra": col[6]
-                        })
-                schema[table] = columns
+                        schema[table][field_name] = field_type
     finally:
         connection.close()
     return schema
 
 def get_postgres_schema():
-    """Retrieves PostgreSQL database schema."""
     connection = connect_to_postgres()
     schema = {}
     try:
@@ -82,7 +67,6 @@ def get_postgres_schema():
                 WHERE table_schema = 'public'
             """)
             tables = [row['table_name'] for row in cursor.fetchall()]
-
             for table in tables:
                 cursor.execute("""
                     SELECT column_name, data_type 
@@ -94,70 +78,45 @@ def get_postgres_schema():
         connection.close()
     return schema
 
-def get_nosql_schema(sample_size=20, example_limit=3):
-    """Retrieves MongoDB collection structure with field types and example values."""
+def get_nosql_schema():
     db = connect_to_nosql()
     schema = {}
     collections = db.list_collection_names()
-    print("Available collections:", collections)
-
     for collection in collections:
-        samples = list(db[collection].aggregate([{"$sample": {"size": sample_size}}]))
-        field_types = {}
-        for doc in samples:
-            for key, value in doc.items():
-                if key == '_id':
-                    continue
-                t = type(value).__name__
-                if key not in field_types:
-                    field_types[key] = set()
-                field_types[key].add(t)
-
-        schema[collection] = {
-            k: {"types": list(field_types[k])} for k in field_types
-        }
-        print(f"Schema for {collection}:", schema[collection])
+        document = db[collection].find_one()
+        if document:
+            schema[collection] = {key: "string" for key in document.keys() if key != '_id'}
     return schema
 
 def extract_sql_from_response(llm_response: str) -> str:
-    try:
-        pattern = r"```[^\n]*\n([\s\S]*?)```"
-        match = re.search(pattern, llm_response)
-        if match:
-            query = match.group(1).strip()
-        else:
-            query = llm_response.strip()
+    pattern =  r"```[^\n]*\n([\s\S]*?)```"
+    match = re.search(pattern, llm_response)
+    if match:
+        query = match.group(1).strip()
+    else:
+        query = llm_response.strip()
 
-        if "db[" in query or "db." in query:
-            query = query.strip()
-            if query.startswith("result ="):
-                query = query[len("result ="):].strip()
-            return query
-
+    if "db[" in query or "db." in query:
+        query = query.strip()
+        if query.startswith("result ="):
+            query = query[len("result ="):].strip()
         return query
-    except re.error as e:
-        print(f"Regex parse error: {e}")
-        return llm_response.strip()
 
-def fix_common_sql_errors(query: str) -> str:
-    query = re.sub(r"CAST\(([^)]+?)\s+AS\s+JSON\)", r"JSON_QUOTE(\1)", query)
-    query = re.sub(r"JSON_QUOTE\((\w+\.(?:\w*id|\w*_id))\)", r"CAST(\1 AS JSON)", query)
     return query
 
 def rewrite_field_for_json(schema: dict, query: str) -> str:
     for table, fields in schema.items():
-        for field in fields:
-            type_str = field["type"] if isinstance(field, dict) else fields[field]
-            if isinstance(type_str, str) and "array<string>" in type_str:
-                query = re.sub(
-                    r"JSON_CONTAINS\([^,]+,\s*CAST\((\w+)\.actor_id\s+AS\s+JSON\)\s*,\s*'\\$'\)",
-                    r"JSON_CONTAINS(\g<1>.actors_json, JSON_QUOTE(\g<1>.name), '$')",
-                    query
-                )
+        if isinstance(fields, dict):
+            for field, type_str in fields.items():
+                if field == "actors_json" and "array<string>" in type_str:
+                    query = re.sub(
+                        r"JSON_CONTAINS\((\w+\.)?actors_json,\s*CAST\((\w+\.)?actor_id\s+AS\s+CHAR[^)]*\)\)",
+                        r"JSON_CONTAINS(\1actors_json, JSON_QUOTE(\2name))",
+                        query
+                    )
     return query
 
 def generate_query(user_query: str, db_type: str) -> tuple:
-    """Uses LLM to generate a database query based on schema."""
     if db_type == "mysql":
         schema = get_sql_schema()
         db_type_desc = "MySQL"
@@ -166,7 +125,7 @@ def generate_query(user_query: str, db_type: str) -> tuple:
         schema = get_postgres_schema()
         db_type_desc = "PostgreSQL"
         schema_str = str(schema)
-    else:  # mongodb
+    else:
         schema = get_nosql_schema()
         db_type_desc = "MongoDB"
         schema_str = json.dumps(schema, indent=2, ensure_ascii=False)
@@ -187,7 +146,6 @@ For MySQL queries:
 - Do not use PostgreSQL or any other database-specific syntax.
 - Do not include comments or explanations.
 - Only use table and column names that appear in the schema. Do not assume any extra fields or relationships.
-- If you need to join tables, only use columns that exist in both tables as shown in the schema. Do not assume foreign keys unless they are explicitly present in the schema.
 - If the query is about "the most", "the least", "top N", always use ORDER BY and LIMIT.
 - If the query cannot be generated with the given schema, output a simple SELECT statement from an existing table.
 - Never generate queries that cannot be executed with the provided schema.
@@ -211,8 +169,7 @@ Schema:
 
     completion = call_llm_api(messages)
     extracted_query = extract_sql_from_response(completion)
-    fixed_query = fix_common_sql_errors(extracted_query)
-    final_query = rewrite_field_for_json(schema, fixed_query)
+    final_query = rewrite_field_for_json(schema, extracted_query)
     print("Generated query:", final_query)
 
     if db_type in ["mysql", "postgres"]:
