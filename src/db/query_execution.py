@@ -1,6 +1,7 @@
 # Executes and validates SQL queries
 import sqlparse
-
+from bson import ObjectId
+import pandas as pd
 from db.nosql_connector import connect_to_nosql
 from db.postgres_connector import connect_to_postgres
 from db.rdbms_connector import connect_to_rdbms
@@ -86,3 +87,14 @@ def execute_nosql(nosql_query: str):
         error_msg = f"Error executing MongoDB query: {str(e)}"
         print(error_msg)
         return error_msg
+def clean_mongodb_data(data):
+    """Clean MongoDB data by converting special types to strings, and flatten lists to comma-separated strings for DataFrame compatibility."""
+    if isinstance(data, dict):
+        return {k: clean_mongodb_data(v) for k, v in data.items()}
+    elif isinstance(data, list):
+        return ', '.join([str(clean_mongodb_data(item)) for item in data])
+    elif isinstance(data, ObjectId):
+        return str(data)
+    elif isinstance(data, (pd.Timestamp, pd.DatetimeTZDtype)):
+        return str(data)
+    return data

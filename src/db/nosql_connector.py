@@ -8,7 +8,7 @@ def connect_to_nosql():
         client = MongoClient("mongodb://localhost:27017/")
         # Test the connection
         client.server_info()
-        db = client["movie_db"]  # Use the existing database
+        db = client["sales"]  # Use the existing database
         
         # Debug: Print available collections
         collections = db.list_collection_names()

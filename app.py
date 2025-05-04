@@ -3,7 +3,7 @@ import streamlit as st
 from bson import ObjectId
 
 from src.db import (connect_to_postgres, execute_nosql, execute_postgres,
-                    execute_sql, validate_sql)
+                    execute_sql, validate_sql,clean_mongodb_data)
 from src.llm import (extract_sql_from_response, generate_query,
                      get_nosql_schema, get_postgres_schema, get_sql_schema)
 
