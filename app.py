@@ -7,20 +7,6 @@ from src.db import (connect_to_postgres, execute_nosql, execute_postgres,
 from src.llm import (extract_sql_from_response, generate_query,
                      get_nosql_schema, get_postgres_schema, get_sql_schema)
 
-
-def clean_mongodb_data(data):
-    """Clean MongoDB data by converting special types to strings, and flatten lists to comma-separated strings for DataFrame compatibility."""
-    if isinstance(data, dict):
-        return {k: clean_mongodb_data(v) for k, v in data.items()}
-    elif isinstance(data, list):
-        return ', '.join([str(clean_mongodb_data(item)) for item in data])
-    elif isinstance(data, ObjectId):
-        return str(data)
-    elif isinstance(data, (pd.Timestamp, pd.DatetimeTZDtype)):
-        return str(data)
-    return data
-
-
 def main():
     st.title("Natural Language to SQL/NoSQL Query")
 
