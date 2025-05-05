@@ -3,17 +3,17 @@ from datetime import datetime
 
 import mysql.connector
 
-# 连接到MySQL
+# Connect to MySQL
 conn = mysql.connector.connect(
     host="localhost",
     user="root",
     password="",
     database="Movie",
-    ssl_disabled=True  # 禁用SSL
+    ssl_disabled=True  # Disable SSL
 )
 cursor = conn.cursor()
 
-# 导入导演数据
+# Import director data
 with open("merged_directors.json", encoding="utf-8") as f:
     directors = json.load(f)
 
@@ -30,11 +30,12 @@ for d in directors:
     ))
 conn.commit()
 
+# Map director names to their IDs
 cursor.execute("SELECT director_id, name FROM directors")
 for row in cursor.fetchall():
     name_to_director_id[row[1]] = row[0]
 
-# 导入演员数据
+# Import actor data
 with open("merged_actors.json", encoding="utf-8") as f:
     actors = json.load(f)
 
@@ -50,7 +51,7 @@ for a in actors:
     ))
 conn.commit()
 
-# 导入电影数据
+# Import movie data
 with open("merged_movies.json", encoding="utf-8") as f:
     movies = json.load(f)
 
@@ -81,9 +82,9 @@ for m in movies:
         ))
 
     except Exception as e:
-        print("跳过错误电影：", m.get("name"), e)
+        print("Skipped erroneous movie:", m.get("name"), e)
 
 conn.commit()
 cursor.close()
 conn.close()
-print("✅ MySQL数据导入完成！") 
+print("MySQL data import complete!")

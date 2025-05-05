@@ -68,18 +68,18 @@ def execute_sql(sql_query: str):
 
 def execute_nosql(nosql_query: str):
     """
-    执行 MongoDB 查询。
-    参数 nosql_query 预期为一个可以在 MongoDB 上执行的 Python 表达式字符串，
-    例如："db['students'].find({'name': 'Alice'})"。
+    Execute a MongoDB query.
+    The parameter `nosql_query` is expected to be a Python expression string that can be executed on MongoDB,
+    for example: "db['students'].find({'name': 'Alice'})".
 
-    注意：这里使用 eval 执行查询，请确保查询内容受信任。
+    Note: This uses eval to execute the query, so make sure the query content is trusted.
     """
     print("Executing MongoDB query:", nosql_query)
     db = connect_to_nosql()  # Already returns the database object
     try:
-        # 在安全上下文中执行查询，提供 db 变量供表达式使用
+        # Execute the query in a secure context, providing the `db` variable for use in the expression
         result = eval(nosql_query, {"db": db})
-        # 如果返回的是 pymongo Cursor，则转换为列表
+        # If the result is a pymongo Cursor, convert it to a list
         if hasattr(result, "sort") or hasattr(result, "batch_size"):
             result = list(result)
         print("MongoDB query result:", result)
@@ -88,6 +88,7 @@ def execute_nosql(nosql_query: str):
         error_msg = f"Error executing MongoDB query: {str(e)}"
         print(error_msg)
         return error_msg
+
 def clean_mongodb_data(data):
     """Clean MongoDB data by converting special types to strings, and flatten lists to comma-separated strings for DataFrame compatibility."""
     if isinstance(data, dict):
