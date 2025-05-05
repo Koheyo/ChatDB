@@ -2,10 +2,24 @@ import pandas as pd
 import streamlit as st
 from bson import ObjectId
 
-from src.db import (connect_to_postgres, execute_nosql, execute_postgres,
-                    execute_sql, validate_sql,clean_mongodb_data)
-from src.llm import (extract_sql_from_response, generate_query,
-                     get_nosql_schema, get_postgres_schema, get_sql_schema)
+from src.db import execute_nosql  # execute_postgres,
+from src.db import execute_sql, validate_sql  # connect_to_postgres,
+from src.llm import get_nosql_schema  # get_postgres_schema,
+from src.llm import extract_sql_from_response, generate_query, get_sql_schema
+
+
+def clean_mongodb_data(data):
+    """Clean MongoDB data by converting special types to strings, and flatten lists to comma-separated strings for DataFrame compatibility."""
+    if isinstance(data, dict):
+        return {k: clean_mongodb_data(v) for k, v in data.items()}
+    elif isinstance(data, list):
+        return ', '.join([str(clean_mongodb_data(item)) for item in data])
+    elif isinstance(data, ObjectId):
+        return str(data)
+    elif isinstance(data, (pd.Timestamp, pd.DatetimeTZDtype)):
+        return str(data)
+    return data
+
 
 def main():
     st.title("Natural Language to SQL/NoSQL Query")
@@ -18,9 +32,9 @@ def main():
     if db_choice == "MySQL":
         schema = get_sql_schema()
         st.json(schema)
-    elif db_choice == "PostgreSQL":
-        schema = get_postgres_schema()
-        st.json(schema)
+    # elif db_choice == "PostgreSQL":
+    #     schema = get_postgres_schema()
+    #     st.json(schema)
     else:
         schema = get_nosql_schema()
         st.json(schema)
@@ -38,7 +52,7 @@ def main():
             # Convert database choice to the expected format
             db_type_map = {
                 "MySQL": "mysql",
-                "PostgreSQL": "postgres",
+                #"PostgreSQL": "postgres",
                 "MongoDB": "mongodb"
             }
             db_type = db_type_map[db_choice]
@@ -61,8 +75,8 @@ def main():
                     else:
                         st.error("Invalid MySQL query. Please try again.")
                         return
-                elif db_choice == "PostgreSQL":
-                    result = execute_postgres(st.session_state.generated_query)
+                # elif db_choice == "PostgreSQL":
+                #     result = execute_postgres(st.session_state.generated_query)
                 else:  # MongoDB
                     result = execute_nosql(st.session_state.generated_query)
                     # Clean MongoDB result

@@ -1,12 +1,14 @@
 # Converts natural language queries into structured database queries
 import json
 import re
+
 import pymysql
 
 from ..db.nosql_connector import connect_to_nosql
 from ..db.postgres_connector import connect_to_postgres
 from ..db.rdbms_connector import connect_to_rdbms
 from .llm_integration import call_llm_api
+
 
 def infer_json_array_type(connection, table_name: str, field_name: str, sample_size: int = 5):
     cursor = connection.cursor()
@@ -56,27 +58,27 @@ def get_sql_schema():
         connection.close()
     return schema
 
-def get_postgres_schema():
-    connection = connect_to_postgres()
-    schema = {}
-    try:
-        with connection.cursor() as cursor:
-            cursor.execute("""
-                SELECT table_name 
-                FROM information_schema.tables 
-                WHERE table_schema = 'public'
-            """)
-            tables = [row['table_name'] for row in cursor.fetchall()]
-            for table in tables:
-                cursor.execute("""
-                    SELECT column_name, data_type 
-                    FROM information_schema.columns 
-                    WHERE table_name = %s
-                """, (table,))
-                schema[table] = [row['column_name'] for row in cursor.fetchall()]
-    finally:
-        connection.close()
-    return schema
+# def get_postgres_schema():
+#     connection = connect_to_postgres()
+#     schema = {}
+#     try:
+#         with connection.cursor() as cursor:
+#             cursor.execute("""
+#                 SELECT table_name 
+#                 FROM information_schema.tables 
+#                 WHERE table_schema = 'public'
+#             """)
+#             tables = [row['table_name'] for row in cursor.fetchall()]
+#             for table in tables:
+#                 cursor.execute("""
+#                     SELECT column_name, data_type 
+#                     FROM information_schema.columns 
+#                     WHERE table_name = %s
+#                 """, (table,))
+#                 schema[table] = [row['column_name'] for row in cursor.fetchall()]
+#     finally:
+#         connection.close()
+#     return schema
 
 # def get_nosql_schema():
 #     db = connect_to_nosql()
@@ -149,10 +151,10 @@ def generate_query(user_query: str, db_type: str) -> tuple:
         schema = get_sql_schema()
         db_type_desc = "MySQL"
         schema_str = json.dumps(schema, indent=2, ensure_ascii=False)
-    elif db_type == "postgres":
-        schema = get_postgres_schema()
-        db_type_desc = "PostgreSQL"
-        schema_str = str(schema)
+    # elif db_type == "postgres":
+    #     schema = get_postgres_schema()
+    #     db_type_desc = "PostgreSQL"
+    #     schema_str = str(schema)
     else:
         schema = get_nosql_schema()
         db_type_desc = "MongoDB"

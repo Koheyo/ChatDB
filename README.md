@@ -56,10 +56,45 @@ user="your_username"
 password="your_password"
 database="Movie"
 ```
+4. Import the sample data:
+   - The sample data files are located in `src/databases/mysql/`
+   - Before running the import script, update the database connection in `src/databases/mysql/import_mysql.py`:
+   ```python
+   conn = mysql.connector.connect(
+       host="localhost",
+       user="your_username",
+       password="your_password",
+       database="Movie",
+       ssl_disabled=True
+   )
+   ```
+   - Then run the import script:
+   ```bash
+   python src/databases/mysql/import_mysql.py
+   ```
+   This will import:
+   - merged_movies.json
+   - merged_actors.json
+   - merged_directors.json
+
 ### MongoDB Setup
 1. Install MongoDB Server
-2. Create a database named "movie_db"
+2. Create a database named "sales"
 3. The default connection URL is "mongodb://localhost:27017/"
+4. Import the sample data:
+   - The sample data files are located in `src/databases/mangodb/`
+   - Before running the import script, update the MongoDB connection URL in `src/databases/mangodb/import_mongodb.py` if needed:
+   ```python
+   client = MongoClient('mongodb://localhost:27017/')  # Update this if your MongoDB is not running locally
+   ```
+   - Then run the import script:
+   ```bash
+   python src/databases/mangodb/import_mongodb.py
+   ```
+   This will import:
+   - customers.json (300 customer records)
+   - orders.json (1200 order records)
+   - products.json (100 product records)
 
 ## Usage
 
@@ -83,6 +118,11 @@ ChatDB/
 │── src/
 │   │── __init__.py
 │   │── config.py                   # Configuration settings
+│   │── databases/                  # Database files and import scripts
+│   │   │── mangodb/               # MongoDB data files and import script
+│   │   │   │── import_mongodb.py  # Script to import MongoDB data
+│   │   │── mysql/                 # MySQL data files and import script
+│   │   │   │── import_mysql.py    # Script to import MySQL data
 │   │── llm/                        # LLM integration and query processing
 │   │   │── __init__.py
 │   │   │── llm_integration.py      # Azure OpenAI integration

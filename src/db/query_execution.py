@@ -1,9 +1,10 @@
 # Executes and validates SQL queries
+import pandas as pd
 import sqlparse
 from bson import ObjectId
-import pandas as pd
+
 from db.nosql_connector import connect_to_nosql
-from db.postgres_connector import connect_to_postgres
+#from db.postgres_connector import connect_to_postgres
 from db.rdbms_connector import connect_to_rdbms
 
 
@@ -44,25 +45,25 @@ def execute_sql(sql_query: str):
         connection.close()
 
 
-def execute_postgres(query: str):
-    """Executes a PostgreSQL query."""
-    print("Executing PostgreSQL query:", query)
-    connection = connect_to_postgres()
-    try:
-        with connection.cursor() as cursor:
-            cursor.execute(query)
-            if query.strip().upper().startswith('SELECT'):
-                results = cursor.fetchall()
-                print("Query results:", results)
-                return results
-            else:
-                connection.commit()
-                return f"{cursor.rowcount} rows affected."
-    except Exception as e:
-        print("Error executing PostgreSQL query:", str(e))
-        raise
-    finally:
-        connection.close()
+# def execute_postgres(query: str):
+#     """Executes a PostgreSQL query."""
+#     print("Executing PostgreSQL query:", query)
+#     connection = connect_to_postgres()
+#     try:
+#         with connection.cursor() as cursor:
+#             cursor.execute(query)
+#             if query.strip().upper().startswith('SELECT'):
+#                 results = cursor.fetchall()
+#                 print("Query results:", results)
+#                 return results
+#             else:
+#                 connection.commit()
+#                 return f"{cursor.rowcount} rows affected."
+#     except Exception as e:
+#         print("Error executing PostgreSQL query:", str(e))
+#         raise
+#     finally:
+#         connection.close()
 
 
 def execute_nosql(nosql_query: str):
