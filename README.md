@@ -135,12 +135,6 @@ ChatDB/
 │── LICENSE                         # Project license
 ```
 
-## Development
-
-### Generating Flow Diagram
-```bash
-python generate_flow_diagram.py
-```
 
 ## Deployment
 
