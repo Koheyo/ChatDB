@@ -82,14 +82,14 @@ database="Movie"
 2. Create a database named "sales"
 3. The default connection URL is "mongodb://localhost:27017/"
 4. Import the sample data:
-   - The sample data files are located in `src/databases/mangodb/`
-   - Before running the import script, update the MongoDB connection URL in `src/databases/mangodb/import_mongodb.py` if needed:
+   - The sample data files are located in `src/databases/mongodb/`
+   - Before running the import script, update the MongoDB connection URL in `src/databases/mongodb/import_mongodb.py` if needed:
    ```python
    client = MongoClient('mongodb://localhost:27017/')  # Update this if your MongoDB is not running locally
    ```
    - Then run the import script:
    ```bash
-   python src/databases/mangodb/import_mongodb.py
+   python src/databases/mongodb/import_mongodb.py
    ```
    This will import:
    - customers.json (300 customer records)
@@ -119,7 +119,7 @@ ChatDB/
 │   │── __init__.py
 │   │── config.py                   # Configuration settings
 │   │── databases/                  # Database files and import scripts
-│   │   │── mangodb/               # MongoDB data files and import script
+│   │   │── mongodb/               # MongoDB data files and import script
 │   │   │   │── import_mongodb.py  # Script to import MongoDB data
 │   │   │── mysql/                 # MySQL data files and import script
 │   │   │   │── import_mysql.py    # Script to import MySQL data
