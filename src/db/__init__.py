@@ -1,7 +1,7 @@
 from .nosql_connector import connect_to_nosql
 #from .postgres_connector import connect_to_postgres
 from .query_execution import execute_nosql  # execute_postgres,
-from .query_execution import execute_sql, validate_sql
+from .query_execution import clean_mongodb_data, execute_sql, validate_sql
 from .rdbms_connector import connect_to_rdbms
 
 __all__ = [
