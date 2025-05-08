@@ -12,5 +12,6 @@ __all__ = [
     #"execute_postgres",
     "connect_to_rdbms",
     #"connect_to_postgres"
+    "clean_mongodb_data"
 ]
 
